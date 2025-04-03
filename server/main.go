@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-
+	"time"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -91,10 +91,11 @@ func main() {
 		}
 
 		fileModifications := []map[string]interface{}{}
-		iter.ForEach(func(c *object.Commit) error {
+		err = iter.ForEach(func(c *object.Commit) error {
 			stats, err := c.Stats()
 			if err != nil {
-				return err
+				// Skip commits that do not have file stats
+				return nil
 			}
 
 			for _, stat := range stats {
@@ -108,9 +109,45 @@ func main() {
 			}
 			return nil
 		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(fileModifications)
+	})
+
+	http.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		iter, err := repo.Log(&git.LogOptions{From: ref.Hash()})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Stream each commit in real time
+		err = iter.ForEach(func(c *object.Commit) error {
+			commitData := map[string]string{
+				"hash":    c.Hash.String(),
+				"author":  c.Author.Name,
+				"message": c.Message,
+				"date":    c.Author.When.String(),
+			}
+			jsonData, _ := json.Marshal(commitData)
+			fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			w.(http.Flusher).Flush()
+
+			// Simulate real-time updates with a delay
+			time.Sleep(2 * time.Second)
+			return nil
+		})
+		if err != nil {
+			log.Println("Error streaming commits:", err)
+		}
 	})
 
 	// Wrap the HTTP handler with CORS middleware
