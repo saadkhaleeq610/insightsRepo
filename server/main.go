@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/rs/cors"
 )
@@ -61,6 +62,55 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(commits)
+	})
+
+	http.HandleFunc("/branches", func(w http.ResponseWriter, r *http.Request) {
+		branches := []string{}
+		refs, err := repo.References()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		refs.ForEach(func(ref *plumbing.Reference) error {
+			if ref.Name().IsBranch() {
+				branches = append(branches, ref.Name().Short())
+			}
+			return nil
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(branches)
+	})
+
+	http.HandleFunc("/file-modifications", func(w http.ResponseWriter, r *http.Request) {
+		iter, err := repo.Log(&git.LogOptions{From: ref.Hash()})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fileModifications := []map[string]interface{}{}
+		iter.ForEach(func(c *object.Commit) error {
+			stats, err := c.Stats()
+			if err != nil {
+				return err
+			}
+
+			for _, stat := range stats {
+				fileModifications = append(fileModifications, map[string]interface{}{
+					"file":       stat.Name,
+					"additions":  stat.Addition,
+					"deletions":  stat.Deletion,
+					"commitHash": c.Hash.String(),
+					"message":    c.Message,
+				})
+			}
+			return nil
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(fileModifications)
 	})
 
 	// Wrap the HTTP handler with CORS middleware

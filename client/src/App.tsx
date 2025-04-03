@@ -15,6 +15,24 @@ function App() {
       .catch((error) => {
         console.error('Error fetching commits:', error);
       });
+
+    fetch('http://localhost:8080/branches')
+      .then((response) => response.json())
+      .then((data) => {
+        console.log('Branches:', data);
+      })
+      .catch((error) => {
+        console.error('Error fetching branches:', error);
+      });
+
+    fetch('http://localhost:8080/file-modifications')
+      .then((response) => response.json())
+      .then((data) => {
+        console.log('File Modifications:', data);
+      })
+      .catch((error) => {
+        console.error('Error fetching file modifications:', error);
+      });
   }, []);
 
   return (
