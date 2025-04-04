@@ -20,11 +20,6 @@ interface HeatmapData {
   count: number
 }
 
-// interface LegendItem {
-//   color: string
-//   label: string
-// }
-
 const ActivityHeatmap = ({ commits }: ActivityHeatmapProps) => {
   const svgRef = useRef<SVGSVGElement | null>(null)
 
