@@ -41,34 +41,28 @@ type CloneRequest struct {
 	RepoURL string `json:"repoUrl"`
 }
 
-// RepoHandler handles cloning a Git repository and streaming all repository data
 func RepoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse the incoming JSON payload
 	var req CloneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Extract repoId from the URL (e.g., "repo" from "https://github.com/user/repo.git")
 	parts := strings.Split(req.RepoURL, "/")
 	repoID := strings.TrimSuffix(parts[len(parts)-1], ".git")
 
-	// Set up SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Define the directory path for this repository
 	repoPath := filepath.Join("repos", repoID)
 
-	// Send status update
 	sendSSEMessage(w, "status", map[string]interface{}{
 		"message": "Starting repository processing",
 		"repoId":  repoID,
@@ -78,7 +72,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		// If the repository doesn't exist, clone it
 		sendSSEMessage(w, "status", map[string]interface{}{
 			"message": "Cloning repository",
 			"repoUrl": req.RepoURL,
@@ -100,7 +93,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 			"repoId":  repoID,
 		})
 	} else {
-		// If the repository already exists
 		sendSSEMessage(w, "status", map[string]interface{}{
 			"message": "Repository already exists, opening existing repository",
 			"repoId":  repoID,
@@ -115,7 +107,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get HEAD reference
 	ref, err := repo.Head()
 	if err != nil {
 		sendSSEMessage(w, "error", map[string]string{
@@ -124,7 +115,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stream branches information
 	sendSSEMessage(w, "status", map[string]string{
 		"message": "Fetching branches",
 	})
@@ -138,7 +128,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 		sendSSEMessage(w, "branches", branches)
 	}
 
-	// Stream commit history
 	sendSSEMessage(w, "status", map[string]string{
 		"message": "Fetching commits history",
 	})
@@ -151,7 +140,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Process commits with their file modifications
 	err = iter.ForEach(func(c *object.Commit) error {
 		commitData := map[string]interface{}{
 			"hash":    c.Hash.String(),
@@ -161,7 +149,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 			"date":    c.Author.When.Format(time.RFC3339),
 		}
 
-		// Get file modifications for this commit
 		stats, err := c.Stats()
 		if err == nil {
 			modifications := []map[string]interface{}{}
@@ -177,7 +164,6 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 
 		sendSSEMessage(w, "commit", commitData)
 
-		// Small delay to make sure browser receives events properly
 		time.Sleep(100 * time.Millisecond)
 		return nil
 	})
@@ -188,14 +174,12 @@ func RepoHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Notify client that all data has been sent
 	sendSSEMessage(w, "complete", map[string]string{
 		"message": "Repository analysis complete",
 		"repoId":  repoID,
 	})
 }
 
-// getBranches returns all branches in the repository
 func getBranches(repo *git.Repository) ([]string, error) {
 	branches := []string{}
 	refs, err := repo.References()
@@ -213,7 +197,6 @@ func getBranches(repo *git.Repository) ([]string, error) {
 	return branches, nil
 }
 
-// sendSSEMessage sends a Server-Sent Event with the specified event type and data
 func sendSSEMessage(w http.ResponseWriter, eventType string, data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
