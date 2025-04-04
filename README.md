@@ -1,4 +1,4 @@
-# 🧠 GitHub Repository Analyzer
+# 🧠 InsightsRepo
 
 A simple and powerful tool to analyze GitHub repositories and extract useful metrics like contributors, languages, commit history, stars, forks, and more. Designed to help developers gain insights about open source projects or their own repositories.
 
